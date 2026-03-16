@@ -1,0 +1,32 @@
+name: App Links Audit Bot
+
+on:
+  schedule:
+    # 15 phút một lần (Cấu trúc: Phút Giờ Ngày Tháng Thứ)
+    - cron: "*/15 * * * *"
+  workflow_dispatch: # Cho phép bạn bấm nút chạy thử trên GitHub bất cứ lúc nào
+
+jobs:
+  run-audit:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: "18"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Create Credentials File
+        # Bước này sẽ tái tạo file credentials.json từ bí mật (Secrets) của GitHub
+        run: |
+          echo '${{ secrets.GOOGLE_CREDENTIALS_JSON }}' > src/credentials.json
+
+      - name: Run Script
+        run: node src/index.js # Thay đổi đường dẫn nếu file của bạn nằm chỗ khác
