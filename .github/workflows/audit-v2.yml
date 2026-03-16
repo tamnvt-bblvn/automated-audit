@@ -1,7 +1,6 @@
 name: App Links Audit Bot
 
 on:
-  workflow_dispatch:
   schedule:
     - cron: "0,15,30,45 * * * *"
 
