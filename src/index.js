@@ -5,6 +5,7 @@ import { google } from "googleapis";
 
 // --- CONFIGURATION ---
 const DISCORD_WEBHOOK_URL =
+  process.env.DISCORD_WEBHOOK_URL ||
   "https://discord.com/api/webhooks/1481232302439923783/JrKu-jsqPO5yatg_Me4DrmonfPRfDJBrFwY0pJBLBOU7vyo94qKgnfkd7qd5yjMuYMLi";
 const SPREADSHEET_ID = "1C1H_6cD_p6ovwGs8MblqwLCaarMdVYonwqvxbWjpREM";
 const RANGE_READ = "'Product Auto'!C2:D100";
@@ -14,8 +15,8 @@ const REAL_USER_AGENT =
 puppeteer.use(StealthPlugin());
 
 /**
- * Core Logic: Verifies if a link is dead using HTTP Fetch (Axios)
- * Instead of a full browser, this checks Status Codes and HTML Source keywords.
+ * Core Logic: Verifies if a link is active or dead.
+ * Uses HTTP Fetch (Axios) to analyze Status Codes, Redirects, and Page Content.
  */
 async function verifyLinkDeadLogic(url, type = "POLICY") {
   try {
@@ -28,17 +29,23 @@ async function verifyLinkDeadLogic(url, type = "POLICY") {
 
     const statusCode = response.status;
     const content = response.data.toString().toLowerCase();
-    const finalUrl = response.request.res.responseUrl || url;
+    const finalUrl = (response.request.res.responseUrl || url).toLowerCase();
 
-    // 1. Kiểm tra HTTP Status
+    // 1. Check HTTP Status Code
     if (statusCode >= 400) return { isDead: true, msg: `HTTP ${statusCode}` };
 
-    // 2. Kiểm tra Redirect về trang Policy chung
-    if (finalUrl.includes("policies.google.com/privacy")) {
-      return { isDead: true, msg: "Redirected to generic Google Privacy" };
+    // 2. Check for Redirects to Login or Generic Privacy pages (Common Google Sites death signs)
+    if (
+      finalUrl.includes("accounts.google.com") ||
+      finalUrl.includes("service-login") ||
+      finalUrl.includes("policies.google.com/privacy") ||
+      finalUrl === "https://sites.google.com/view"
+    ) {
+      return { isDead: true, msg: "Redirected to Login/Generic Google page" };
     }
 
     if (type === "APP-ADS.TXT") {
+      // Logic for app-ads.txt format validation
       const hasAdKeywords =
         content.includes("direct") ||
         content.includes("reseller") ||
@@ -46,56 +53,66 @@ async function verifyLinkDeadLogic(url, type = "POLICY") {
       if (!hasAdKeywords || content.length < 20)
         return { isDead: true, msg: "Invalid ads.txt format" };
     } else {
-      // --- LOGIC POLICY SIÊU NHẠY ---
+      // --- ADVANCED POLICY DETECTION LOGIC ---
 
-      // Lấy Title của trang để check (Title là thứ khó làm giả nhất)
+      // Extract Page Title for validation
       const titleMatch = content.match(/<title>(.*?)<\/title>/i);
       const pageTitle = titleMatch ? titleMatch[1].toLowerCase() : "";
 
-      // Dấu hiệu 1: Title chứa lỗi (Dành cho trang Google Robot trong ảnh f1d041.png)
-      const isErrorTitle =
-        pageTitle.includes("đã xảy ra lỗi") ||
-        pageTitle.includes("error 404") ||
-        pageTitle.includes("not found");
-
-      // Dấu hiệu 2: Regex bắt cụm 404 trong thẻ <b> (có xử lý khoảng trắng)
-      // Google Robot thường dùng: <b>404.</b> <ins>That’s an error.</ins>
-      const isGoogleRobot404 =
-        /<b>\s*404\.?\s*<\/b>/i.test(content) ||
-        content.includes("that’s an error") ||
-        content.includes("đó là một lỗi");
-
-      // Dấu hiệu 3: Từ khóa chết chóc (quét cả dấu và không dấu)
+      // List of keywords indicating a dead or unpublished Google Site
       const deathKeywords = [
+        // "404",
+        "error 404",
+        "not found",
+        "đã xảy ra lỗi",
+        "da xay ra loi", // Vietnamese error variants
         "không tìm thấy url",
         "khong tim thay url",
-        "đã xảy ra lỗi",
-        "da xay ra loi",
+        "the requested url was not found",
+        "that’s an error",
+        "đó là một lỗi",
         "trang web này chưa được công bố",
         "chưa được xuất bản",
-        "the requested url was not found",
-        "tài liệu bạn yêu cầu đã bị xóa",
         "sign in - google accounts",
         "đăng nhập - tài khoản google",
+        "tài liệu bạn yêu cầu đã bị xóa",
       ];
+
+      const matchedKeyword = deathKeywords.find(
+        (kw) => content.includes(kw) || pageTitle.includes(kw),
+      );
+
+      // Detect Google's specific 404 Robot tag
+      const isGoogleRobot404 = /<b>\s*404\.?\s*<\/b>/i.test(content);
+
+      // Check for error keywords in Title or Body
+      const isErrorTitle = deathKeywords.some((kw) => pageTitle.includes(kw));
       const hasDeathKeyword = deathKeywords.some((kw) => content.includes(kw));
 
-      // Dấu hiệu 4: Kiểm tra độ dài và "Google Synthesized"
-      // Trang lỗi Google cực kỳ ngắn (thường < 1500 ký tự)
+      // Check for suspiciously short content (Common in error pages)
       const isSuspiciouslyShort =
         content.length < 1800 &&
-        (content.includes("404") || content.includes("error"));
+        (content.includes("404") ||
+          content.includes("error") ||
+          content.includes("lỗi"));
 
-      // LOG ĐỂ DEBUG
-      if (
-        !isErrorTitle &&
-        !isGoogleRobot404 &&
-        !hasDeathKeyword &&
-        !isSuspiciouslyShort
-      ) {
-        console.log(
-          `[DEBUG] Valid Link: ${url} - Length: ${content.length} - Title: ${pageTitle}`,
-        );
+      // Debug Log for Valid Links
+      // --- LOG DEBUGGING ---
+      if (matchedKeyword || isGoogleRobot404 || isSuspiciouslyShort) {
+        let reason = "";
+        if (matchedKeyword) reason = `Matched Keyword: [${matchedKeyword}]`;
+        else if (isGoogleRobot404) reason = "Google Robot 404 Tag (<b>404</b>)";
+        else if (isSuspiciouslyShort)
+          reason = `Suspiciously Short (${content.length} chars) with Error keywords`;
+
+        console.log(`❌ Link Dead Detection: ${url}`);
+        console.log(`   👉 Reason: ${reason}`);
+        console.log(`   👉 Final URL: ${finalUrl}`);
+
+        return {
+          isDead: true,
+          msg: `Site Unreachable (Reason: ${reason})`,
+        };
       }
 
       if (
@@ -106,7 +123,7 @@ async function verifyLinkDeadLogic(url, type = "POLICY") {
       ) {
         return {
           isDead: true,
-          msg: `Google Site Dead (Captured by: ${isErrorTitle ? "Title" : "Content"})`,
+          msg: `Site Unreachable (Detected by: ${isErrorTitle ? "Title" : "Content Analysis"})`,
         };
       }
     }
@@ -117,25 +134,26 @@ async function verifyLinkDeadLogic(url, type = "POLICY") {
   }
 }
 
+/**
+ * Sends a consolidated report to Discord grouped by error type.
+ */
 async function sendBulkDiscordAlert(errorList) {
   if (errorList.length === 0) return;
 
-  // 1. Nhóm lỗi theo Status (ví dụ: POLICY DOWN, ADS DOWN)
+  // 1. Group errors by status for cleaner reporting
   const groupedErrors = errorList.reduce((acc, err) => {
     if (!acc[err.status]) acc[err.status] = [];
     acc[err.status].push(err);
     return acc;
   }, {});
 
-  // 2. Tạo danh sách các Fields cho Embed
+  // 2. Map grouped errors into Discord Embed fields
   const fields = Object.entries(groupedErrors).map(([status, apps]) => {
     const icon = status.includes("ADS") ? "📄" : "⚖️";
 
-    // Tạo nội dung danh sách app cho mỗi loại lỗi
     const appLinks = apps
       .map((app) => {
         const name = app.name || "Unknown App";
-        // Gom link store và link lỗi vào cùng một dòng để gọn
         return `• **${name}**: [Store](${app.id}) | [Link](${app.link || app.policyUrl || "N/A"})`;
       })
       .join("\n");
@@ -147,11 +165,11 @@ async function sendBulkDiscordAlert(errorList) {
     };
   });
 
-  // 3. Gửi Embed tổng hợp
+  // 3. Build and send the final Embed
   const embed = {
     title: "🚨 SYSTEM AUDIT REPORT",
-    description: `Phát hiện **${errorList.length}** vấn đề tại sheet **Product Auto**.`,
-    color: 0xff0000, // Màu đỏ nổi bật
+    description: `Detected **${errorList.length}** issues in sheet **Product Auto**.`,
+    color: 0xff0000,
     fields: fields,
     footer: {
       text: "Automated Audit System • GitHub Actions",
@@ -162,7 +180,7 @@ async function sendBulkDiscordAlert(errorList) {
   try {
     await axios.post(DISCORD_WEBHOOK_URL, { embeds: [embed] });
   } catch (e) {
-    console.error("❌ Không thể gửi thông báo Discord:", e.message);
+    console.error("❌ Failed to send Discord alert:", e.message);
   }
 }
 
@@ -174,18 +192,20 @@ async function checkApps() {
   const sheets = google.sheets({ version: "v4", auth });
   const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
+  // Fetch data from Google Sheets
   const response = await sheets.spreadsheets.values.get({
     spreadsheetId: SPREADSHEET_ID,
     range: RANGE_READ,
   });
 
   const rows = response.data.values;
-  if (!rows || rows.length === 0) return;
+  if (!rows || rows.length === 0) {
+    console.log("No data found in Google Sheets.");
+    return;
+  }
 
-  // We still need Puppeteer ONLY for the Store page (to find the links)
-  // because Store pages are highly dynamic and hard to fetch via Axios.
+  // Launch Puppeteer with necessary arguments for CI/CD environments
   const browser = await puppeteer.launch({
-    // headless: false,
     headless: "new",
     args: [
       "--no-sandbox",
@@ -208,6 +228,7 @@ async function checkApps() {
       console.log(`🚀 Extracting links from Store: ${fullUrl}`);
       await page.goto(fullUrl, { waitUntil: "networkidle2", timeout: 50000 });
 
+      // Handle Google Play's dynamic contact section
       if (fullUrl.includes("play.google.com")) {
         try {
           const expandBtn = 'button[aria-controls="developer-contacts"]';
@@ -217,10 +238,9 @@ async function checkApps() {
         } catch (e) {}
       }
 
+      // Extract Privacy and Website links using Store-specific selectors
       extractedLinks = await page.evaluate(() => {
         const isApple = window.location.hostname.includes("apple.com");
-
-        // Tìm tất cả các link có data-test-id là "external-link" như trong HTML bạn gửi
         const externalLinks = Array.from(
           document.querySelectorAll('a[data-test-id="external-link"]'),
         );
@@ -229,20 +249,18 @@ async function checkApps() {
         let website = null;
 
         if (isApple && externalLinks.length > 0) {
-          // 1. Tìm link Website: chứa text "Developer Website"
           const wLink = externalLinks.find((a) =>
             a.innerText.includes("Developer Website"),
           );
           if (wLink) website = wLink.href;
 
-          // 2. Tìm link Policy: chứa text "Privacy Policy"
           const pLink = externalLinks.find((a) =>
             a.innerText.includes("Privacy Policy"),
           );
           if (pLink) policy = pLink.href;
         }
 
-        // LOGIC DỰ PHÒNG: Nếu là Google Play hoặc Apple đời cũ (không có data-test-id)
+        // Fallback logic for Play Store or older App Store layouts
         if (!policy || !website) {
           const allAnchors = Array.from(document.querySelectorAll("a"));
           const getValid = (list, keywords) => {
@@ -277,9 +295,9 @@ async function checkApps() {
       await page.close();
     }
 
-    // --- VERIFICATION USING FETCH LOGIC ---
+    // --- LINK VERIFICATION PHASE ---
     if (extractedLinks) {
-      // 1. Check Privacy Policy
+      // 1. Verify Privacy Policy
       if (extractedLinks.policy) {
         const policyCheck = await verifyLinkDeadLogic(
           extractedLinks.policy,
@@ -294,11 +312,10 @@ async function checkApps() {
             name: appName,
             id: fullUrl,
             status: "POLICY DOWN",
-            policyUrl: extractedLinks.policy,
+            link: extractedLinks.policy,
             msg: policyCheck.msg,
           });
         } else {
-          // Thêm dòng này để chắc chắn bạn thấy nó có check
           console.log(`✅ POLICY Valid: ${extractedLinks.policy}`);
         }
       } else {
@@ -307,14 +324,14 @@ async function checkApps() {
           name: appName,
           id: fullUrl,
           status: "MISSING POLICY",
-          msg: "No policy link found on store",
+          msg: "No policy link found on store page",
         });
       }
 
-      // 2. Check App-ads.txt
+      // 2. Verify app-ads.txt
       if (extractedLinks.website) {
         try {
-          let baseUrl = new URL(extractedLinks.website).origin;
+          const baseUrl = new URL(extractedLinks.website).origin;
           const adsTxtUrl = `${baseUrl.replace(/\/$/, "")}/app-ads.txt`;
           const adsCheck = await verifyLinkDeadLogic(adsTxtUrl, "APP-ADS.TXT");
 
@@ -324,7 +341,7 @@ async function checkApps() {
               name: appName,
               id: fullUrl,
               status: "APP-ADS.TXT DOWN",
-              policyUrl: adsTxtUrl,
+              link: adsTxtUrl,
               msg: adsCheck.msg,
             });
           } else {
@@ -339,7 +356,8 @@ async function checkApps() {
     } else {
       console.log(`❌ FAILED TO EXTRACT LINKS FOR: ${appName}`);
     }
-    // Minimal delay between apps to respect Store rate limits
+
+    // Respect rate limits with a small delay
     await delay(2000);
   }
 

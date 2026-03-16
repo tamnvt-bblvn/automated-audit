@@ -2,16 +2,17 @@ name: App Links Audit Bot
 
 on:
   schedule:
-    # 15 phút một lần (Cấu trúc: Phút Giờ Ngày Tháng Thứ)
+    # Runs every 15 minutes (Format: Minute Hour Day Month Day-of-week)
+    # Note: GitHub Actions schedule can be delayed by 5-30 mins depending on server load.
     - cron: "*/15 * * * *"
-  workflow_dispatch: # Cho phép bạn bấm nút chạy thử trên GitHub bất cứ lúc nào
+  workflow_dispatch: # Allows manual execution from the GitHub Actions tab
 
 jobs:
   run-audit:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout code
+      - name: Checkout repository
         uses: actions/checkout@v3
 
       - name: Setup Node.js
@@ -24,9 +25,14 @@ jobs:
         run: npm install
 
       - name: Create Credentials File
-        # Bước này sẽ tái tạo file credentials.json từ bí mật (Secrets) của GitHub
+        # Reconstructs credentials.json from GitHub Repository Secrets
+        # Ensure GOOGLE_CREDENTIALS_JSON is added in Settings > Secrets > Actions
         run: |
           echo '${{ secrets.GOOGLE_CREDENTIALS_JSON }}' > src/credentials.json
 
-      - name: Run Script
-        run: node src/index.js # Thay đổi đường dẫn nếu file của bạn nằm chỗ khác
+      - name: Run Audit Script
+        # Executes the main logic and triggers Discord alerts if issues are found
+        run: node src/index.js
+        env:
+          # Injects Discord Webhook from Secrets into Environment Variables
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
