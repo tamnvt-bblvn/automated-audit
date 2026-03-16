@@ -2,10 +2,8 @@ name: App Links Audit Bot
 
 on:
   schedule:
-    # Runs every 15 minutes (Format: Minute Hour Day Month Day-of-week)
-    # Note: GitHub Actions schedule can be delayed by 5-30 mins depending on server load.
     - cron: "*/15 * * * *"
-  workflow_dispatch: # Allows manual execution from the GitHub Actions tab
+  workflow_dispatch:
 
 jobs:
   run-audit:
