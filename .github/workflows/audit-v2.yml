@@ -30,6 +30,6 @@ jobs:
         env:
           DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
           # Injects configuration from your .env file
-          SHEET_NAMES: ${{ SHEET_NAMES }}
-          SPREADSHEET_ID: ${{ SPREADSHEET_ID }}
+          SHEET_NAMES: ${{ secrets.SHEET_NAMES }}
+          SPREADSHEET_ID: ${{ secrets.SPREADSHEET_ID }}
           DATA_RANGE: ${{ secrets.DATA_RANGE }}
