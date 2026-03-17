@@ -34,3 +34,7 @@ jobs:
         env:
           # Injects Discord Webhook from Secrets into Environment Variables
           DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          # Injects configuration from your .env file
+          SHEET_NAMES: ${{ SHEET_NAMES }}
+          SPREADSHEET_ID: ${{ SPREADSHEET_ID }}
+          DATA_RANGE: ${{ secrets.DATA_RANGE }}

@@ -1,14 +1,15 @@
+import "dotenv/config";
 import axios from "axios";
 import puppeteer from "puppeteer-extra";
 import StealthPlugin from "puppeteer-extra-plugin-stealth";
 import { google } from "googleapis";
 
 // --- CONFIGURATION ---
-const DISCORD_WEBHOOK_URL =
-  process.env.DISCORD_WEBHOOK_URL ||
-  "https://discord.com/api/webhooks/1481232302439923783/JrKu-jsqPO5yatg_Me4DrmonfPRfDJBrFwY0pJBLBOU7vyo94qKgnfkd7qd5yjMuYMLi";
-const SPREADSHEET_ID = "1C1H_6cD_p6ovwGs8MblqwLCaarMdVYonwqvxbWjpREM";
-const RANGE_READ = "'Product Auto'!C2:D100";
+const DISCORD_WEBHOOK_URL = process.env.DISCORD_WEBHOOK_URL;
+const SPREADSHEET_ID = process.env.SPREADSHEET_ID;
+const SHEET_NAMES_ENV = process.env.SHEET_NAMES || "Product Auto";
+const SHEET_NAMES = SHEET_NAMES_ENV.split(",").map((s) => s.trim());
+const DATA_RANGE = process.env.DATA_RANGE;
 const REAL_USER_AGENT =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36";
 
@@ -138,49 +139,59 @@ async function verifyLinkDeadLogic(url, type = "POLICY") {
  * Sends a consolidated report to Discord grouped by error type.
  */
 async function sendBulkDiscordAlert(errorList) {
-  if (errorList.length === 0) return;
+  if (!errorList || errorList.length === 0) return;
 
-  // 1. Group errors by status for cleaner reporting
-  const groupedErrors = errorList.reduce((acc, err) => {
-    if (!acc[err.status]) acc[err.status] = [];
-    acc[err.status].push(err);
+  // 1. Group by status
+  const grouped = errorList.reduce((acc, err) => {
+    const status = (err.status || "Audit Alert").toUpperCase();
+    if (!acc[status]) acc[status] = [];
+    acc[status].push(err);
     return acc;
   }, {});
 
-  // 2. Map grouped errors into Discord Embed fields
-  const fields = Object.entries(groupedErrors).map(([status, apps]) => {
-    const icon = status.includes("ADS") ? "📄" : "⚖️";
+  let description = `### 📊 Summary: Found **${errorList.length}** issues\n\n`;
 
-    const appLinks = apps
-      .map((app) => {
-        const name = app.name || "Unknown App";
-        return `• **${name}**: [Store](${app.id}) | [Link](${app.link || app.policyUrl || "N/A"})`;
-      })
-      .join("\n");
+  // 2. Build Category content
+  for (const [status, apps] of Object.entries(grouped)) {
+    description += `📂 **Category: ${status}**\n`;
 
-    return {
-      name: `${icon} ${status} (${apps.length})`,
-      value: appLinks,
-      inline: false,
-    };
-  });
+    apps.forEach((app) => {
+      // Validate link data to prevent broken Markdown [Text]()
+      const sLink =
+        app.id && app.id.startsWith("http") ? `[Store](${app.id})` : "No Store";
+      const lLink =
+        app.link && app.link.startsWith("http")
+          ? `[Link](${app.link})`
+          : "No Link";
 
-  // 3. Build and send the final Embed
+      // Optimize App Name: Truncate if too long (>25 chars) to prevent line breaks on UI
+      const rawName = app.name || "Unknown";
+      const shortName =
+        rawName.length > 25 ? rawName.substring(0, 22) + "..." : rawName;
+
+      // Ensure sheetTag is included for all categories
+      const sheetTag = app.sheetName ? `\`${app.sheetName}\`` : "";
+
+      // Render ultra-compact format on a single line
+      description += `- **${shortName}** ${sheetTag} 🔗 ${sLink} | ${lLink}\n`;
+    });
+
+    description += `\n`;
+  }
+
   const embed = {
-    title: "🚨 SYSTEM AUDIT REPORT",
-    description: `Detected **${errorList.length}** issues in sheet **Product Auto**.`,
-    color: 0xff0000,
-    fields: fields,
-    footer: {
-      text: "Automated Audit System • GitHub Actions",
-    },
+    title: "🚨 PROJECT OVERVIEW: LINK AUDIT",
+    color: 0xe74c3c,
+    description: description.substring(0, 4000),
+    footer: { text: "System Monitor • Automated Audit" },
     timestamp: new Date(),
   };
 
   try {
-    await axios.post(DISCORD_WEBHOOK_URL, { embeds: [embed] });
+    await axios.post(process.env.DISCORD_WEBHOOK_URL, { embeds: [embed] });
+    console.log("✅ Audit report sent successfully.");
   } catch (e) {
-    console.error("❌ Failed to send Discord alert:", e.message);
+    console.error("❌ Discord Error:", e.response?.data || e.message);
   }
 }
 
@@ -191,18 +202,6 @@ async function checkApps() {
   });
   const sheets = google.sheets({ version: "v4", auth });
   const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-
-  // Fetch data from Google Sheets
-  const response = await sheets.spreadsheets.values.get({
-    spreadsheetId: SPREADSHEET_ID,
-    range: RANGE_READ,
-  });
-
-  const rows = response.data.values;
-  if (!rows || rows.length === 0) {
-    console.log("No data found in Google Sheets.");
-    return;
-  }
 
   // Launch Puppeteer with necessary arguments for CI/CD environments
   const browser = await puppeteer.launch({
@@ -215,150 +214,182 @@ async function checkApps() {
   });
 
   const errorList = [];
+  for (const sheetName of SHEET_NAMES) {
+    console.log(`\n--- 📊 Checking Sheet: ${sheetName} ---`);
 
-  for (const row of rows) {
-    const [appName, fullUrl] = row;
-    if (!fullUrl) continue;
+    const range = `'${sheetName}'!${DATA_RANGE}`;
 
-    const page = await browser.newPage();
-    await page.setUserAgent(REAL_USER_AGENT);
-
-    let extractedLinks = null;
     try {
-      console.log(`🚀 Extracting links from Store: ${fullUrl}`);
-      await page.goto(fullUrl, { waitUntil: "networkidle2", timeout: 50000 });
+      // Fetch data from Google Sheets
+      const response = await sheets.spreadsheets.values.get({
+        spreadsheetId: SPREADSHEET_ID,
+        range: range,
+      });
 
-      // Handle Google Play's dynamic contact section
-      if (fullUrl.includes("play.google.com")) {
-        try {
-          const expandBtn = 'button[aria-controls="developer-contacts"]';
-          await page.waitForSelector(expandBtn, { timeout: 5000 });
-          await page.click(expandBtn);
-          await delay(1000);
-        } catch (e) {}
+      const rows = response.data.values;
+      if (!rows || rows.length === 0) {
+        console.log(`[${sheetName}] no data.`);
+        continue;
       }
 
-      // Extract Privacy and Website links using Store-specific selectors
-      extractedLinks = await page.evaluate(() => {
-        const isApple = window.location.hostname.includes("apple.com");
-        const externalLinks = Array.from(
-          document.querySelectorAll('a[data-test-id="external-link"]'),
-        );
+      for (const row of rows) {
+        const [appName, fullUrl] = row;
+        if (!fullUrl) continue;
 
-        let policy = null;
-        let website = null;
+        const page = await browser.newPage();
+        await page.setUserAgent(REAL_USER_AGENT);
 
-        if (isApple && externalLinks.length > 0) {
-          const wLink = externalLinks.find((a) =>
-            a.innerText.includes("Developer Website"),
-          );
-          if (wLink) website = wLink.href;
+        let extractedLinks = null;
+        try {
+          console.log(`🚀 Extracting links from Store: ${fullUrl}`);
+          await page.goto(fullUrl, {
+            waitUntil: "networkidle2",
+            timeout: 50000,
+          });
 
-          const pLink = externalLinks.find((a) =>
-            a.innerText.includes("Privacy Policy"),
-          );
-          if (pLink) policy = pLink.href;
-        }
+          // Handle Google Play's dynamic contact section
+          if (fullUrl.includes("play.google.com")) {
+            try {
+              const expandBtn = 'button[aria-controls="developer-contacts"]';
+              await page.waitForSelector(expandBtn, { timeout: 5000 });
+              await page.click(expandBtn);
+              await delay(1000);
+            } catch (e) {}
+          }
 
-        // Fallback logic for Play Store or older App Store layouts
-        if (!policy || !website) {
-          const allAnchors = Array.from(document.querySelectorAll("a"));
-          const getValid = (list, keywords) => {
-            const found = list.find((a) => {
-              const text = a.innerText.toLowerCase();
-              const href = a.href.toLowerCase();
-              return (
-                keywords.some((k) => text.includes(k)) &&
-                href.startsWith("http") &&
-                !href.includes("apple.com") &&
-                !href.includes("google.com/privacy")
+          // Extract Privacy and Website links using Store-specific selectors
+          extractedLinks = await page.evaluate(() => {
+            const isApple = window.location.hostname.includes("apple.com");
+            const externalLinks = Array.from(
+              document.querySelectorAll('a[data-test-id="external-link"]'),
+            );
+
+            let policy = null;
+            let website = null;
+
+            if (isApple && externalLinks.length > 0) {
+              const wLink = externalLinks.find((a) =>
+                a.innerText.includes("Developer Website"),
               );
-            });
-            return found ? found.href : null;
-          };
+              if (wLink) website = wLink.href;
 
-          if (!policy) policy = getValid(allAnchors, ["privacy", "chính sách"]);
-          if (!website)
-            website = getValid(allAnchors, ["website", "trang web"]);
-        }
+              const pLink = externalLinks.find((a) =>
+                a.innerText.includes("Privacy Policy"),
+              );
+              if (pLink) policy = pLink.href;
+            }
 
-        return { policy, website };
-      });
-    } catch (e) {
-      errorList.push({
-        name: appName,
-        id: fullUrl,
-        status: "STORE ERROR",
-        msg: e.message,
-      });
-    } finally {
-      await page.close();
-    }
+            // Fallback logic for Play Store or older App Store layouts
+            if (!policy || !website) {
+              const allAnchors = Array.from(document.querySelectorAll("a"));
+              const getValid = (list, keywords) => {
+                const found = list.find((a) => {
+                  const text = a.innerText.toLowerCase();
+                  const href = a.href.toLowerCase();
+                  return (
+                    keywords.some((k) => text.includes(k)) &&
+                    href.startsWith("http") &&
+                    !href.includes("apple.com") &&
+                    !href.includes("google.com/privacy")
+                  );
+                });
+                return found ? found.href : null;
+              };
 
-    // --- LINK VERIFICATION PHASE ---
-    if (extractedLinks) {
-      // 1. Verify Privacy Policy
-      if (extractedLinks.policy) {
-        const policyCheck = await verifyLinkDeadLogic(
-          extractedLinks.policy,
-          "POLICY",
-        );
+              if (!policy)
+                policy = getValid(allAnchors, ["privacy", "chính sách"]);
+              if (!website)
+                website = getValid(allAnchors, ["website", "trang web"]);
+            }
 
-        if (policyCheck.isDead) {
-          console.log(
-            `❌ POLICY DOWN: ${extractedLinks.policy} (${policyCheck.msg})`,
-          );
+            return { policy, website };
+          });
+        } catch (e) {
           errorList.push({
             name: appName,
+            sheetName: sheetName,
             id: fullUrl,
-            status: "POLICY DOWN",
-            link: extractedLinks.policy,
-            msg: policyCheck.msg,
+            status: "STORE ERROR",
+            msg: e.message,
           });
-        } else {
-          console.log(`✅ POLICY Valid: ${extractedLinks.policy}`);
+        } finally {
+          await page.close();
         }
-      } else {
-        console.log(`⚠️ MISSING POLICY LINK: ${fullUrl}`);
-        errorList.push({
-          name: appName,
-          id: fullUrl,
-          status: "MISSING POLICY",
-          msg: "No policy link found on store page",
-        });
-      }
 
-      // 2. Verify app-ads.txt
-      if (extractedLinks.website) {
-        try {
-          const baseUrl = new URL(extractedLinks.website).origin;
-          const adsTxtUrl = `${baseUrl.replace(/\/$/, "")}/app-ads.txt`;
-          const adsCheck = await verifyLinkDeadLogic(adsTxtUrl, "APP-ADS.TXT");
+        // --- LINK VERIFICATION PHASE ---
+        if (extractedLinks) {
+          // 1. Verify Privacy Policy
+          if (extractedLinks.policy) {
+            const policyCheck = await verifyLinkDeadLogic(
+              extractedLinks.policy,
+              "POLICY",
+            );
 
-          if (adsCheck.isDead) {
-            console.log(`❌ ADS DOWN: ${adsTxtUrl} (${adsCheck.msg})`);
+            if (policyCheck.isDead) {
+              console.log(
+                `❌ POLICY DOWN: ${extractedLinks.policy} (${policyCheck.msg})`,
+              );
+              errorList.push({
+                name: appName,
+                sheetName: sheetName,
+                id: fullUrl,
+                status: "POLICY DOWN",
+                link: extractedLinks.policy,
+                msg: policyCheck.msg,
+              });
+            } else {
+              console.log(`✅ POLICY Valid: ${extractedLinks.policy}`);
+            }
+          } else {
+            console.log(`⚠️ MISSING POLICY LINK: ${fullUrl}`);
             errorList.push({
               name: appName,
+              sheetName: sheetName,
               id: fullUrl,
-              status: "APP-ADS.TXT DOWN",
-              link: adsTxtUrl,
-              msg: adsCheck.msg,
+              status: "MISSING POLICY",
+              msg: "No policy link found on store page",
             });
-          } else {
-            console.log(`✅ ADS Valid: ${adsTxtUrl}`);
           }
-        } catch (urlErr) {
-          console.log(`⚠️ INVALID WEBSITE URL: ${extractedLinks.website}`);
-        }
-      } else {
-        console.log(`⚠️ MISSING WEBSITE: ${fullUrl}`);
-      }
-    } else {
-      console.log(`❌ FAILED TO EXTRACT LINKS FOR: ${appName}`);
-    }
 
-    // Respect rate limits with a small delay
-    await delay(2000);
+          // 2. Verify app-ads.txt
+          if (extractedLinks.website) {
+            try {
+              const baseUrl = new URL(extractedLinks.website).origin;
+              const adsTxtUrl = `${baseUrl.replace(/\/$/, "")}/app-ads.txt`;
+              const adsCheck = await verifyLinkDeadLogic(
+                adsTxtUrl,
+                "APP-ADS.TXT",
+              );
+
+              if (adsCheck.isDead) {
+                console.log(`❌ ADS DOWN: ${adsTxtUrl} (${adsCheck.msg})`);
+                errorList.push({
+                  name: appName,
+                  id: fullUrl,
+                  sheetName: sheetName,
+                  status: "APP-ADS.TXT DOWN",
+                  link: adsTxtUrl,
+                  msg: adsCheck.msg,
+                });
+              } else {
+                console.log(`✅ ADS Valid: ${adsTxtUrl}`);
+              }
+            } catch (urlErr) {
+              console.log(`⚠️ INVALID WEBSITE URL: ${extractedLinks.website}`);
+            }
+          } else {
+            console.log(`⚠️ MISSING WEBSITE: ${fullUrl}`);
+          }
+        } else {
+          console.log(`❌ FAILED TO EXTRACT LINKS FOR: ${appName}`);
+        }
+
+        // Respect rate limits with a small delay
+        await delay(2000);
+      }
+    } catch (err) {
+      console.error(`❌ Read error sheet ${sheetName}:`, err.message);
+    }
   }
 
   await browser.close();
