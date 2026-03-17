@@ -1,20 +1,19 @@
 name: App Links Audit Bot
 
 on:
-  schedule:
-    - cron: "*/15 * * * *"
   workflow_dispatch:
+  schedule:
+    - cron: "0,15,30,45 * * * *"
 
 jobs:
   run-audit:
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Setup Node.js
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@v4
         with:
           node-version: "18"
           cache: "npm"
@@ -23,16 +22,12 @@ jobs:
         run: npm install
 
       - name: Create Credentials File
-        # Reconstructs credentials.json from GitHub Repository Secrets
-        # Ensure GOOGLE_CREDENTIALS_JSON is added in Settings > Secrets > Actions
         run: |
           echo '${{ secrets.GOOGLE_CREDENTIALS_JSON }}' > src/credentials.json
 
       - name: Run Audit Script
-        # Executes the main logic and triggers Discord alerts if issues are found
         run: node src/index.js
         env:
-          # Injects Discord Webhook from Secrets into Environment Variables
           DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
           # Injects configuration from your .env file
           SHEET_NAMES: ${{ SHEET_NAMES }}
