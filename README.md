@@ -33,7 +33,6 @@ This tool helps teams:
 - Example:
   - Product Auto
   - Titan
-  - Global
 
 ### 📊 Clean Discord UI
 
@@ -83,9 +82,7 @@ graph TD
 ```
 automated-audit/
 │── src/
-│   ├── index.js            # Entry point
-│   ├── services/          # Core logic (Google API, checker)
-│   ├── utils/             # Helper functions
+│   ├── index.js           # Entry point
 │   └── credentials.json   # Google service account key
 │
 │── .github/workflows/     # GitHub Actions config
@@ -126,7 +123,7 @@ Create `.env` file:
 
 ```env
 SPREADSHEET_ID=your_spreadsheet_id
-SHEET_NAMES=Product Auto,Titan,Global
+SHEET_NAMES=Product Auto,Titan
 DATA_RANGE=C2:D100
 DISCORD_WEBHOOK_URL=your_webhook_url
 ```
@@ -144,7 +141,7 @@ src/credentials.json
 ### 3. Run Locally
 
 ```bash
-node src/index.js
+npm run start
 ```
 
 ---
@@ -157,8 +154,10 @@ Go to: Settings → Secrets and variables → Actions
 
 Add:
 
-- GOOGLE_CREDENTIALS_JSON → Full JSON content
+- SHEET_NAMES → Full JSON content
 - DISCORD_WEBHOOK_URL → Your webhook URL
+- SPREADSHEET_ID → Your sheet id
+- DATA_RANGE → Range you want read
 
 ---
 
