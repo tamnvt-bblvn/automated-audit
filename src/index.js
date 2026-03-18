@@ -52,7 +52,7 @@ async function checkApps() {
     await asyncPool(CONCURRENCY, rows, async (row, index) => {
       const taskId = index + 1; // unique id per task
 
-      const [appId, , appName, rawUrl] = row;
+      const [appId, os, appName, rawUrl] = row;
       const fullUrl = normalizeUrl(rawUrl);
 
       // CASE: content in 3 column are empty
@@ -73,6 +73,7 @@ async function checkApps() {
         errorList.push({
           name: appName || appId || "Unknown",
           sheetName,
+          os,
           id: null,
           status: "MISSING STORE URL",
           msg: "Store URL is empty or invalid",
@@ -165,6 +166,7 @@ async function checkApps() {
         errorList.push({
           name: appName || appId,
           sheetName: sheetName,
+          os,
           id: fullUrl,
           status: "STORE ERROR",
           msg: e.message,
@@ -190,6 +192,7 @@ async function checkApps() {
             errorList.push({
               name: appName || appId,
               sheetName: sheetName,
+              os,
               id: fullUrl,
               status: "POLICY DOWN",
               link: extractedLinks.policy,
@@ -203,6 +206,7 @@ async function checkApps() {
           errorList.push({
             name: appName || appId,
             sheetName: sheetName,
+            os,
             id: fullUrl,
             status: "MISSING POLICY",
             msg: "No policy link found on store page",
@@ -232,6 +236,7 @@ async function checkApps() {
                 errorList.push({
                   name: appName || appId,
                   id: fullUrl,
+                  os,
                   sheetName: sheetName,
                   status: "NETWORK UNSTABLE",
                   link: adsTxtUrl,
@@ -241,6 +246,7 @@ async function checkApps() {
                 errorList.push({
                   name: appName || appId,
                   id: fullUrl,
+                  os,
                   sheetName: sheetName,
                   status: "APP-ADS.TXT DOWN",
                   link: adsTxtUrl,

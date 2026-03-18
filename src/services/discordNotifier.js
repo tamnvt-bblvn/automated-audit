@@ -36,7 +36,16 @@ export async function sendBulkDiscordAlert(errorList) {
         rawName.length > 25 ? rawName.substring(0, 22) + "..." : rawName;
 
       // Ensure sheetTag is included for all categories
-      const sheetTag = app.sheetName ? `\`${app.sheetName}\`` : "";
+      const shortSheetName = app.sheetName
+        ? app.sheetName.split(" ").pop() // Product Auto → Auto
+        : null;
+
+      const sheetTag = [
+        shortSheetName ? `\`${shortSheetName}\`` : null,
+        app.os ? `\`${app.os}\`` : null,
+      ]
+        .filter(Boolean)
+        .join(" ");
 
       // Render ultra-compact format on a single line
       description += `- **${shortName}** ${sheetTag} 🔗 ${sLink} | ${lLink}\n`;
@@ -46,7 +55,7 @@ export async function sendBulkDiscordAlert(errorList) {
   }
 
   const embed = {
-    title: "🚨 PROJECT OVERVIEW: LINK AUDIT",
+    title: "🚨 PROJECT OVERVIEW: LINK AUDIT WEB STORE",
     color: 0xe74c3c,
     description: description.substring(0, 4000),
     footer: { text: "System Monitor • Automated Audit" },
