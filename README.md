@@ -82,11 +82,22 @@ graph TD
 ```
 automated-audit/
 │── src/
-│   ├── index.js           # Entry point
-│   └── credentials.json   # Google service account key
-│
-│── .github/workflows/     # GitHub Actions config
-│── .env                   # Environment variables
+│   ├── config/
+│   │   └── env.js              # Environment variables & constants
+│   │
+│   ├── services/
+│   │   ├── googleSheets.js     # Google Sheets data fetching
+│   │   ├── linkVerifier.js     # Link validation logic
+│   │   └── discordNotifier.js  # Send alerts to Discord
+│   │
+│   ├── utils/
+│   │   ├── browser.js          # Puppeteer browser setup
+│   │   └── pool.js             # Concurrency control (asyncPool)
+│   │
+│   ├── credentials.json        # Google service account key
+│   ├── index.js                # Entry point (main workflow)
+│── .github/workflows/          # GitHub Actions config
+│── .env                        # Environment variables
 │── package.json
 │── README.md
 ```
