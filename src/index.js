@@ -12,6 +12,22 @@ const delay = (ms) => new Promise((r) => setTimeout(r, ms));
 // Limit number of concurrent browser pages
 const CONCURRENCY = 3;
 
+function normalizeUrl(url) {
+  if (!url) return null;
+
+  // Remove leading/trailing spaces
+  let clean = url.trim();
+
+  if (!clean) return null;
+
+  // Add https
+  if (!/^https?:\/\//i.test(clean)) {
+    clean = "https://" + clean;
+  }
+
+  return clean;
+}
+
 async function checkApps() {
   const auth = new google.auth.GoogleAuth({
     keyFile: "src/credentials.json",
@@ -36,8 +52,34 @@ async function checkApps() {
     await asyncPool(CONCURRENCY, rows, async (row, index) => {
       const taskId = index + 1; // unique id per task
 
-      const [appName, fullUrl] = row;
-      if (!fullUrl) return;
+      const [appId, , appName, rawUrl] = row;
+      const fullUrl = normalizeUrl(rawUrl);
+
+      // CASE: content in 3 column are empty
+      const isEmptyRow =
+        (!appId || !appId.trim()) &&
+        (!appName || !appName.trim()) &&
+        (!rawUrl || !rawUrl.trim());
+
+      if (isEmptyRow) {
+        console.log(`[${taskId}][${sheetName}] ⏭️ Skip empty row`);
+        return;
+      }
+
+      // CASE: missing or invalid URL
+      if (!fullUrl) {
+        console.log(`[${taskId}][${sheetName}] ❌ MISSING STORE URL`);
+
+        errorList.push({
+          name: appName || appId || "Unknown",
+          sheetName,
+          id: null,
+          status: "MISSING STORE URL",
+          msg: "Store URL is empty or invalid",
+        });
+
+        return;
+      }
 
       const prefix = `[${taskId}][${sheetName}]`; // unified log prefix
 
@@ -47,7 +89,7 @@ async function checkApps() {
       let extractedLinks = null;
 
       try {
-        console.log(`${prefix} 🚀 Start: ${appName}`);
+        console.log(`${prefix} 🚀 Start: ${appName || appId}`);
         console.log(`${prefix} ➡️ URL: ${fullUrl}`);
 
         await page.goto(fullUrl, {
@@ -121,7 +163,7 @@ async function checkApps() {
         console.log(`${prefix} ❌ STORE ERROR: ${e.message}`);
 
         errorList.push({
-          name: appName,
+          name: appName || appId,
           sheetName: sheetName,
           id: fullUrl,
           status: "STORE ERROR",
@@ -146,7 +188,7 @@ async function checkApps() {
             console.log(`${prefix} ❌ POLICY DOWN: ${policyCheck.msg}`);
 
             errorList.push({
-              name: appName,
+              name: appName || appId,
               sheetName: sheetName,
               id: fullUrl,
               status: "POLICY DOWN",
@@ -159,7 +201,7 @@ async function checkApps() {
         } else {
           console.log(`${prefix} ⚠️ MISSING POLICY`);
           errorList.push({
-            name: appName,
+            name: appName || appId,
             sheetName: sheetName,
             id: fullUrl,
             status: "MISSING POLICY",
@@ -182,15 +224,29 @@ async function checkApps() {
 
             if (adsCheck.isDead) {
               console.log(`${prefix} ❌ ADS DOWN: ${adsCheck.msg}`);
-
-              errorList.push({
-                name: appName,
-                id: fullUrl,
-                sheetName: sheetName,
-                status: "APP-ADS.TXT DOWN",
-                link: adsTxtUrl,
-                msg: adsCheck.msg,
-              });
+              if (
+                adsCheck.msg.includes("socket hang up") ||
+                adsCheck.msg.includes("ECONNRESET") ||
+                adsCheck.msg.includes("timeout")
+              ) {
+                errorList.push({
+                  name: appName || appId,
+                  id: fullUrl,
+                  sheetName: sheetName,
+                  status: "NETWORK UNSTABLE",
+                  link: adsTxtUrl,
+                  msg: adsCheck.msg,
+                });
+              } else {
+                errorList.push({
+                  name: appName || appId,
+                  id: fullUrl,
+                  sheetName: sheetName,
+                  status: "APP-ADS.TXT DOWN",
+                  link: adsTxtUrl,
+                  msg: adsCheck.msg,
+                });
+              }
             } else {
               console.log(`${prefix} ✅ ADS OK`);
             }
