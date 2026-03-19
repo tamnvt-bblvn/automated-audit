@@ -1,18 +1,20 @@
 # 📝 Công cụ đồng bộ GitHub Secrets & Variables
 
-Công cụ này giúp tự động hóa việc khởi tạo hàng loạt Secrets và Variables trên
-GitHub Repository từ file cấu hình môi trường (.env) cục bộ. Thay vì nhập thủ
-công từng biến trên giao diện Web, bạn chỉ cần chạy script một lần duy nhất.
+Công cụ này giúp tự động hóa việc khởi tạo hàng loạt **Secrets** và
+**Variables** trên GitHub Repository từ file cấu hình môi trường (`.env`) cục
+bộ. Thay vì nhập thủ công từng biến trên giao diện Web, bạn chỉ cần chạy script
+một lần duy nhất.
 
 ---
 
 ## 🚀 Tính năng
 
-- Tự động phân loại: Nhận diện các từ khóa nhạy cảm (KEY, TOKEN, SECRET, PASS,
-  AUTH) để đưa vào Secrets. Các biến còn lại sẽ được lưu vào Variables.
-- Tiết kiệm thời gian: Khởi tạo hàng chục biến chỉ trong vài giây.
-- Bảo mật: Không đẩy dữ liệu nhạy cảm lên mã nguồn (sử dụng GitHub CLI trực tiếp
-  trên máy local).
+- 🔐 **Tự động phân loại:** Nhận diện các từ khóa nhạy cảm (`KEY`, `TOKEN`,
+  `SECRET`, `PASS`, `AUTH`) để đưa vào **Secrets**. Các biến còn lại sẽ được lưu
+  vào **Variables**.
+- ⚡ **Tiết kiệm thời gian:** Khởi tạo hàng chục biến chỉ trong vài giây.
+- 🛡 **Bảo mật:** Không đẩy dữ liệu nhạy cảm lên mã nguồn (sử dụng GitHub CLI
+  trực tiếp trên máy local).
 
 ---
 
@@ -20,13 +22,25 @@ công từng biến trên giao diện Web, bạn chỉ cần chạy script một
 
 Đảm bảo máy của bạn đã cài đặt:
 
-GitHub CLI (gh)
+### GitHub CLI (gh)
 
-Windows: winget install --id GitHub.cli
+**Windows**
 
-MacOS: brew install gh
+```bash
+winget install --id GitHub.cli
+```
 
-Đăng nhập GitHub CLI: gh auth login
+**MacOS**
+
+```bash
+brew install gh
+```
+
+### Đăng nhập GitHub CLI
+
+```bash
+gh auth login
+```
 
 Làm theo hướng dẫn trên trình duyệt để hoàn tất đăng nhập.
 
@@ -34,46 +48,66 @@ Làm theo hướng dẫn trên trình duyệt để hoàn tất đăng nhập.
 
 ## 🛠 Cách sử dụng
 
-### Bước 1: Chuẩn bị file .env
+### 1️⃣ Chuẩn bị file `.env`
 
-Tạo file .env tại thư mục gốc của dự án (file này nên được ignore trong
-.gitignore).
+Tạo file `.env` tại thư mục gốc của dự án (file này nên được ignore trong
+`.gitignore`).
 
-Ví dụ: API_KEY=123456789 # → SECRET DB_PASSWORD=secret_pass # → SECRET
-APP_NAME=MyAwesomeApp # → VARIABLE DEBUG=true # → VARIABLE
+Ví dụ:
+
+```env
+API_KEY=123456789          # → SECRET
+DB_PASSWORD=secret_pass    # → SECRET
+APP_NAME=MyAwesomeApp      # → VARIABLE
+DEBUG=true                 # → VARIABLE
+```
 
 ---
 
-### Bước 2: Chạy script đồng bộ
+### 2️⃣ Chạy script đồng bộ
 
-Cách 1: Windows (PowerShell) – Khuyến nghị
+#### Windows (PowerShell) – Khuyến nghị
 
+```powershell
 .\sync_env.ps1
+```
 
-Nếu gặp lỗi quyền: Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope
-CurrentUser
+Nếu gặp lỗi quyền:
 
----
-
-Cách 2: Linux / MacOS / Git Bash
-
-chmod +x sync_env.sh ./sync_env.sh
+```powershell
+Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
+```
 
 ---
 
-### Bước 3: Kiểm tra kết quả
+#### Linux / MacOS / Git Bash
 
-Sau khi thấy thông báo "Completed!", truy cập:
+```bash
+chmod +x sync_env.sh
+./sync_env.sh
+```
 
+---
+
+### 3️⃣ Kiểm tra kết quả
+
+Sau khi thấy thông báo **"Completed!"**, truy cập:
+
+```
 GitHub Repo → Settings → Secrets and variables → Actions
+```
 
 ---
 
 ## ⚠️ Lưu ý quan trọng
 
-- Ghi đè: Nếu Secret/Variable đã tồn tại, giá trị sẽ được cập nhật theo file
-  .env.
-- Bảo mật: Không commit file .env hoặc các script chứa thông tin nhạy cảm.
-- Quy tắc phân loại: Các biến chứa SECRET, TOKEN, KEY, PASS, AUTH → được coi là
-  Secrets
-- Bạn có thể chỉnh sửa logic này trong script nếu cần.
+- 🔄 **Ghi đè:** Nếu Secret/Variable đã tồn tại, giá trị sẽ được cập nhật theo
+  file `.env`.
+- 🔒 **Bảo mật:** Không commit file `.env` hoặc các script chứa thông tin nhạy
+  cảm.
+- 🧠 **Quy tắc phân loại:**
+  ```
+  SECRET, TOKEN, KEY, PASS, AUTH
+  ```
+  → được coi là **Secrets**
+- ⚙️ Có thể chỉnh sửa logic này trong script nếu cần.
