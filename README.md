@@ -54,11 +54,9 @@ This tool helps teams:
 
 ---
 
-```md
 ## 📚 Documentation
 
 - [GitHub Env Sync Tool](./docs/ENV_SYNC.md)
-```
 
 ---
 
