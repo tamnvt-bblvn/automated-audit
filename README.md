@@ -42,7 +42,7 @@ This tool helps teams:
 
 ### ⏱ Automated Execution
 
-- Runs every 15 minutes
+- Runs at the time you set
 - Supports:
   - GitHub Actions
   - External Cron Jobs (recommended for real-time)
@@ -92,9 +92,9 @@ automated-audit/
 │   │   └── env.js              # Environment variables & constants
 │   │
 │   ├── services/
+│   │   ├── discordNotifier.js  # Send alerts to Discord
 │   │   ├── googleSheets.js     # Google Sheets data fetching
-│   │   ├── linkVerifier.js     # Link validation logic
-│   │   └── discordNotifier.js  # Send alerts to Discord
+│   │   └── linkVerifier.js     # Link validation logic
 │   │
 │   ├── utils/
 │   │   ├── browser.js          # Puppeteer browser setup
@@ -102,6 +102,7 @@ automated-audit/
 │   │
 │   ├── credentials.json        # Google service account key
 │   ├── index.js                # Entry point (main workflow)
+│   │
 │── docs/
 │   └── ENV_SYNC.md
 │── .github/workflows/          # GitHub Actions config
@@ -145,7 +146,7 @@ Create `.env` file:
 ```env
 SECRET_SPREADSHEET_ID=your_spreadsheet_id
 SECRET_SHEET_NAMES=Product Auto,Titan
-SECRET_DATA_RANGE=C2:D100
+SECRET_DATA_RANGE=A2:D100
 SECRET_DISCORD_WEBHOOK_URL=your_webhook_url
 ```
 
@@ -179,32 +180,17 @@ Add:
 - DISCORD_WEBHOOK_URL → Your webhook URL
 - SPREADSHEET_ID → Your sheet id
 - DATA_RANGE → Range you want read
-
----
-
-### Configure Workflow
-
-Edit:
-
-```
-.github/workflows/main.yml
-```
-
-Update:
-
-- SPREADSHEET_ID
-- SHEET_NAMES
-- DATA_RANGE
+- GOOGLE_CREDENTIALS_JSON → Your content of credentials.json
 
 ---
 
 ## 📊 Discord Output Example
 
 ```
-📂 POLICY DOWN
+📂 Category: POLICY DOWN
 - App A [Product] 🔗 Store | Link
 
-📂 WEBSTORE ERROR
+📂 Category: WEBSTORE ERROR
 - App B [Titan] 🔗 Store | Link
 ```
 
