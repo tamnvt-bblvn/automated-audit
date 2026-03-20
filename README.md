@@ -54,6 +54,14 @@ This tool helps teams:
 
 ---
 
+```md
+## 📚 Documentation
+
+- [GitHub Env Sync Tool](./docs/ENV_SYNC.md)
+```
+
+---
+
 ## 🏗 Architecture Overview
 
 ```mermaid
@@ -96,10 +104,14 @@ automated-audit/
 │   │
 │   ├── credentials.json        # Google service account key
 │   ├── index.js                # Entry point (main workflow)
+│── docs/
+│   └── ENV_SYNC.md
 │── .github/workflows/          # GitHub Actions config
 │── .env                        # Environment variables
 │── package.json
 │── README.md
+│── sync_env.ps1
+│── sync_env.sh
 ```
 
 ---
@@ -133,10 +145,10 @@ npm install
 Create `.env` file:
 
 ```env
-SPREADSHEET_ID=your_spreadsheet_id
-SHEET_NAMES=Product Auto,Titan
-DATA_RANGE=C2:D100
-DISCORD_WEBHOOK_URL=your_webhook_url
+SECRET_SPREADSHEET_ID=your_spreadsheet_id
+SECRET_SHEET_NAMES=Product Auto,Titan
+SECRET_DATA_RANGE=C2:D100
+SECRET_DISCORD_WEBHOOK_URL=your_webhook_url
 ```
 
 Add credentials:
