@@ -33,3 +33,4 @@ jobs:
           SHEET_NAMES: ${{ secrets.SHEET_NAMES }}
           SPREADSHEET_ID: ${{ secrets.SPREADSHEET_ID }}
           DATA_RANGE: ${{ secrets.DATA_RANGE }}
+          DISCORD_ID: ${{ secrets.DISCORD_ID }}
