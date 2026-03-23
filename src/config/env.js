@@ -1,5 +1,6 @@
 import "dotenv/config";
 
+export const DISCORD_ID = process.env.DISCORD_ID;
 export const DISCORD_WEBHOOK_URL = process.env.DISCORD_WEBHOOK_URL;
 export const SPREADSHEET_ID = process.env.SPREADSHEET_ID;
 export const SHEET_NAMES = (process.env.SHEET_NAMES || "Product Auto")

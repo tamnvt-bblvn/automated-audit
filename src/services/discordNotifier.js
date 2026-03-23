@@ -1,11 +1,14 @@
 import axios from "axios";
-import { DISCORD_WEBHOOK_URL } from "../config/env.js";
+import { DISCORD_WEBHOOK_URL, DISCORD_ID } from "../config/env.js";
 
 /**
  * Sends a consolidated report to Discord grouped by error type.
  */
 export async function sendBulkDiscordAlert(errorList) {
   if (!errorList || errorList.length === 0) return;
+  const content = !errorList.length
+    ? ``
+    : `⚠️ **Alert!** <@${DISCORD_ID}>, broken links!`;
 
   // 1. Group by status
   const grouped = errorList.reduce((acc, err) => {
@@ -63,7 +66,10 @@ export async function sendBulkDiscordAlert(errorList) {
   };
 
   try {
-    await axios.post(DISCORD_WEBHOOK_URL, { embeds: [embed] });
+    await axios.post(DISCORD_WEBHOOK_URL, {
+      content: content,
+      embeds: [embed],
+    });
     console.log("✅ Audit report sent successfully.");
   } catch (e) {
     console.error("❌ Discord Error:", e.response?.data || e.message);
