@@ -33,4 +33,6 @@ jobs:
           SHEET_NAMES: ${{ secrets.SHEET_NAMES }}
           SPREADSHEET_ID: ${{ secrets.SPREADSHEET_ID }}
           DATA_RANGE: ${{ secrets.DATA_RANGE }}
+          ONLY_WHEN_JOB_YES: ${{ secrets.ONLY_WHEN_JOB_YES }}
+          JOB_COLUMN_INDEX: ${{ secrets.JOB_COLUMN_INDEX }}
           DISCORD_ID: ${{ secrets.DISCORD_ID }}

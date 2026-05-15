@@ -3,7 +3,13 @@ import { launchBrowser } from "./utils/browser.js";
 import { verifyLinkDeadLogic } from "./services/linkVerifier.js";
 import { sendBulkDiscordAlert } from "./services/discordNotifier.js";
 import { getSheetRows } from "./services/googleSheets.js";
-import { SHEET_NAMES, DATA_RANGE, REAL_USER_AGENT } from "./config/env.js";
+import {
+  SHEET_NAMES,
+  DATA_RANGE,
+  ONLY_WHEN_JOB_YES,
+  JOB_COLUMN_INDEX,
+  REAL_USER_AGENT,
+} from "./config/env.js";
 import { asyncPool } from "./utils/pool.js";
 
 // Simple delay utility (used to avoid rate limit / blocking)
@@ -64,6 +70,17 @@ async function checkApps() {
       if (isEmptyRow) {
         console.log(`[${taskId}][${sheetName}] ⏭️ Skip empty row`);
         return;
+      }
+
+      if (ONLY_WHEN_JOB_YES) {
+        const jobRaw = row[JOB_COLUMN_INDEX];
+        const job = String(jobRaw ?? "").trim();
+        if (job.toLowerCase() !== "yes") {
+          console.log(
+            `[${taskId}][${sheetName}] ⏭️ Skip: Job column is not Yes`,
+          );
+          return;
+        }
       }
 
       // CASE: missing or invalid URL
