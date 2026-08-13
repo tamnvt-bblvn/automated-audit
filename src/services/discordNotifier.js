@@ -8,7 +8,7 @@ export async function sendBulkDiscordAlert(errorList) {
   if (!errorList || errorList.length === 0) return;
   const content = !errorList.length
     ? ``
-    : `⚠️ **Alert!** <@${DISCORD_ID}>, broken links!`;
+    : `⚠️ **Alert!**, broken links!`;
 
   // 1. Group by status
   const grouped = errorList.reduce((acc, err) => {
